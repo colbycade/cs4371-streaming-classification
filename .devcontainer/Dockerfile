@@ -20,4 +20,5 @@ RUN useradd -m -s /bin/bash vscode \
     && chown -R vscode:vscode /workspace /home/vscode
 
 USER vscode
+RUN git config --global --add safe.directory /workspace
 WORKDIR /workspace
