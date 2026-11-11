@@ -82,3 +82,18 @@ The training component saves a Spark MLlib `PipelineModel` for the classificatio
 - Categories: `0 = World`, `1 = Sports`, `2 = Business`, `3 = Sci/Tech`
 - The same trained model is used for batch and streaming classification
 
+## Kibana Dashboard
+
+The dashboard configuration is included in `kibana/kibana-dashboard.ndjson`. It displays the top 10 named entities by cumulative count.
+
+**Import the existing dashboard:**
+
+1. Start the Docker Compose services and open http://localhost:5601.
+2. Navigate to **Management → Stack Management → Saved Objects**.
+3. Click **Import** and select `results/kibana-dashboard.ndjson`.
+4. Click **Import**, then navigate to **Analytics → Dashboards**.
+5. Open **Top 10 Named Entities**.
+
+The dashboard may initially be empty until Spark and Logstash populate the Elasticsearch `entity-counts` index.
+
+Follow the instructions in `kibana/README.md` to recreate the dashboard from scratch if needed.
