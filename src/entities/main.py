@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import spacy
+from pyspark.sql import SparkSession
 
 SAMPLE_PATH = "data/examples/topic1.jsonl"
 KEEP = {"PERSON", "ORG", "GPE", "NORP", "EVENT", "PRODUCT"}
@@ -26,9 +27,17 @@ def main():
             for entity in doc.ents:
                 if entity.label_ in KEEP:
                     print(f"  {entity.text!r}: {entity.label_}")
-
-    # TODO: Create SparkSession
+    
     # TODO: Read streaming messages from topic1
+    spark = (
+        SparkSession.builder
+        .appName("EntityCounter")
+        .getOrCreate()
+    )
+    df = spark.read.json(SAMPLE_PATH)
+    df.printSchema()
+    df.show(truncate=False)
+
     # TODO: Extract and normalize named entities using spaCy
     # TODO: Calculate cumulative entity counts
     # TODO: Publish counts matching topic2.schema.json
