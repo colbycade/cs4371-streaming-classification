@@ -4,9 +4,37 @@ import json
 import os
 import spacy
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import udf, explode
+from pyspark.sql.types import ArrayType, StringType
 
 SAMPLE_PATH = "data/examples/topic1.jsonl"
 KEEP = {"PERSON", "ORG", "GPE", "NORP", "EVENT", "PRODUCT"}
+
+_nlp = None # Global spaCy model instance to avoid reloading for each UDF call
+
+# Returns a list of cleaned, named entities in the input text
+def entities(text):
+    if not text:
+        return []
+
+    # Load spaCy model once per worker
+    global _nlp
+    if _nlp is None:
+        _nlp = spacy.load("en_core_web_sm")
+
+    # Clean text and extract named entities
+    result = []
+    for entity in _nlp(text).ents:
+        if entity.label_ in KEEP:
+            # Drop possesive 's and ’s then strip whitespace
+            stripped = entity.text.strip()
+            cleaned = stripped.removesuffix("'s").removesuffix("’s").strip()
+            # Drop 1-character or digit-only entities
+            if len(cleaned) > 1 and not cleaned.isdigit():
+                result.append(cleaned)
+    return result
+
+ner = udf(entities, ArrayType(StringType()))
 
 def main():
     parser = argparse.ArgumentParser(description="Streaming entity counts")
@@ -17,16 +45,6 @@ def main():
     args = parser.parse_args()
 
     nlp = spacy.load("en_core_web_sm")
-    with open(SAMPLE_PATH, encoding="utf-8") as samples:
-        for line in samples:
-            message = json.loads(line)
-            doc = nlp(message["text"])
-            print(f"\nText: {message['text']}")
-            if not doc.ents:
-                print("  No entities found.")
-            for entity in doc.ents:
-                if entity.label_ in KEEP:
-                    print(f"  {entity.text!r}: {entity.label_}")
     
     # TODO: Read streaming messages from topic1
     spark = (
@@ -35,10 +53,15 @@ def main():
         .getOrCreate()
     )
     df = spark.read.json(SAMPLE_PATH)
-    df.printSchema()
-    df.show(truncate=False)
 
-    # TODO: Extract and normalize named entities using spaCy
+    # Extract and normalize named entities using spaCy
+    entity_counts = (
+        df.select(explode(ner("text")).alias("entity"))
+        .groupBy("entity")
+        .count()
+    )
+    entity_counts.show(truncate=False)
+
     # TODO: Calculate cumulative entity counts
     # TODO: Publish counts matching topic2.schema.json
     # TODO: Configure checkpointing and start streaming query
