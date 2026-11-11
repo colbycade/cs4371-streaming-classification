@@ -1,0 +1,25 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python-generated files
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Generated data
+data/raw/*
+!data/raw/.gitkeep
+data/models/*
+!data/models/.gitkeep
+data/checkpoints/*
+!data/checkpoints/.gitkeep
+results/*
+!results/.gitkeep
+
+# Logs
+*.log
+
+# OS-generated files
+.DS_Store

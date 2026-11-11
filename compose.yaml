@@ -1,0 +1,110 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    init: true
+    working_dir: /workspace
+    command: sleep infinity
+    volumes:
+      - .:/workspace:cached
+      - ivy-cache:/home/vscode/.ivy2
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      SPARK_LOCAL_IP: 127.0.0.1
+      PYSPARK_PYTHON: python
+      PYSPARK_DRIVER_PYTHON: python
+      PYSPARK_SUBMIT_ARGS: "--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.8 pyspark-shell"
+      # Default paths for data and models
+      MODEL_PATH: /workspace/data/models/ag_news
+      ENTITY_CHECKPOINT_PATH: /workspace/data/checkpoints/entities
+      CLASSIFICATION_CHECKPOINT_PATH: /workspace/data/checkpoints/classification
+      RAW_DATA_PATH: /workspace/data/raw
+    ports:
+      - "127.0.0.1:4040:4040"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "127.0.0.1:29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  kafka-init:
+    image: apache/kafka:3.9.1
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        until /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do sleep 3; done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --if-not-exists --create --topic topic1 --partitions 1 --replication-factor 1 --config retention.ms=604800000
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --if-not-exists --create --topic topic2 --partitions 1 --replication-factor 1 --config retention.ms=604800000
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.1
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.1
+    environment:
+      LS_JAVA_OPTS: -Xms512m -Xmx512m
+      XPACK_MONITORING_ENABLED: "false"
+      PIPELINE_WORKERS: 1
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.1
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "127.0.0.1:5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  kafka-data:
+  elasticsearch-data:
+  ivy-cache:

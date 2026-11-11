@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hacker News entity count message",
+  "type": "object",
+  "required": ["entity", "count"],
+  "properties": {
+    "entity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}
