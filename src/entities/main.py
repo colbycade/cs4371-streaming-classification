@@ -1,13 +1,11 @@
 
 import argparse
-import json
 import os
 import spacy
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, explode
-from pyspark.sql.types import ArrayType, StringType
+from pyspark.sql.functions import col, udf, explode, from_json
+from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
-SAMPLE_PATH = "data/examples/topic1.jsonl"
 KEEP = {"PERSON", "ORG", "GPE", "NORP", "EVENT", "PRODUCT"}
 
 _nlp = None # Global spaCy model instance to avoid reloading for each UDF call
@@ -22,11 +20,11 @@ def entities(text):
     if _nlp is None:
         _nlp = spacy.load("en_core_web_sm")
 
-    # Clean text and extract named entities
+    # Extract entities from the original text, then clean the allowed names
     result = []
     for entity in _nlp(text).ents:
         if entity.label_ in KEEP:
-            # Drop possesive 's and ’s then strip whitespace
+            # Trim whitespace and remove a trailing possessive 's or ’s
             stripped = entity.text.strip()
             cleaned = stripped.removesuffix("'s").removesuffix("’s").strip()
             # Drop 1-character or digit-only entities
@@ -44,28 +42,53 @@ def main():
     parser.add_argument("--checkpoint-path", default=os.getenv("ENTITY_CHECKPOINT_PATH", "/workspace/data/checkpoints/entities"))
     args = parser.parse_args()
 
-    nlp = spacy.load("en_core_web_sm")
-    
-    # TODO: Read streaming messages from topic1
     spark = (
         SparkSession.builder
         .appName("EntityCounter")
         .getOrCreate()
     )
-    df = spark.read.json(SAMPLE_PATH)
+    schema = StructType([
+        StructField("text", StringType()) # we only care about text field from topic1
+    ])
 
-    # Extract and normalize named entities using spaCy
+    # Read streaming messages from topic1
+    raw = (
+        spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", args.bootstrap_servers)
+        .option("subscribe", args.input_topic)
+        .option("startingOffsets", "earliest")  # read from earliest available if no checkpoint
+        .load()
+    )
+
+    # Decode message value bytes then parse the JSON to get text
+    msgs = (
+        raw.select(
+            from_json(col("value").cast("string"), schema).alias("message")
+        )
+        .select("message.text")
+        .filter(col("text").isNotNull())
+    )
+
+    # Extract named entities from each message into rows, then count occurrences of each across all messages
     entity_counts = (
-        df.select(explode(ner("text")).alias("entity"))
+        msgs.select(explode(ner("text")).alias("entity"))
         .groupBy("entity")
         .count()
     )
-    entity_counts.show(truncate=False)
 
-    # TODO: Calculate cumulative entity counts
     # TODO: Publish counts matching topic2.schema.json
-    # TODO: Configure checkpointing and start streaming query
-
+    # For now, write running totals to console each trigger
+    query = (
+        entity_counts.writeStream
+        .format("console")
+        .outputMode("complete")
+        .option("truncate", "false")
+        .option("checkpointLocation", args.checkpoint_path)
+        .trigger(processingTime="10 seconds")
+        .start()
+    )
+    query.awaitTermination() # wait until stream is stopped (Ctrl+C)
 
 if __name__ == "__main__":
     main()
