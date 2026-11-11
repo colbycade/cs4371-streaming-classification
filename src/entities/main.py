@@ -3,7 +3,7 @@ import argparse
 import os
 import spacy
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf, explode, from_json
+from pyspark.sql.functions import col, udf, explode, from_json, to_json, struct
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
 KEEP = {"PERSON", "ORG", "GPE", "NORP", "EVENT", "PRODUCT"}
@@ -47,6 +47,7 @@ def main():
         .appName("EntityCounter")
         .getOrCreate()
     )
+    spark.sparkContext.setLogLevel("ERROR")
     schema = StructType([
         StructField("text", StringType()) # we only care about text field from topic1
     ])
@@ -77,13 +78,19 @@ def main():
         .count()
     )
 
-    # TODO: Publish counts matching topic2.schema.json
-    # For now, write running totals to console each trigger
+    # Serialize each entity and its cumulative count as JSON for topic2
+    output = entity_counts.select(
+        col("entity").alias("key"),
+        to_json(struct("entity", "count")).alias("value")
+    )
+
+    # Publish updated cumulative entity counts to topic2
     query = (
-        entity_counts.writeStream
-        .format("console")
-        .outputMode("complete")
-        .option("truncate", "false")
+        output.writeStream
+        .format("kafka")
+        .outputMode("update")
+        .option("kafka.bootstrap.servers", args.bootstrap_servers)
+        .option("topic", args.output_topic)
         .option("checkpointLocation", args.checkpoint_path)
         .trigger(processingTime="10 seconds")
         .start()
