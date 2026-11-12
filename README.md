@@ -28,7 +28,7 @@ We need to build a system that collects text from the internet in real time, ide
 | Component | Directory | Responsibility | Assigned To |
 |---|---|---|---|
 | Data collection | `producer/` | Collect Hacker News stories/comments, publish text to Kafka `topic1`, and save collected messages locally | |
-| Entity counting | `entities/` | Use Spark and spaCy to extract and count named entities, publish cumulative counts to topic2, and configure Logstash, Elasticsearch, and the Kibana dashboard | |
+| Entity counting | `entities/` | Use Spark and spaCy to extract and count named entities, publish cumulative counts to topic2, and configure Logstash, Elasticsearch, and the Kibana dashboard | Colby Wright |
 | Model training | `training/` | Load AG News, fit the Spark MLlib classification pipeline, and save the trained model | |
 | Classification | `classification/` | Classify collected messages in batch and real time, report predictions and category counts, and evaluate 50 manually labeled messages | |
 
