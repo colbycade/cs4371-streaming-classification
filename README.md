@@ -61,7 +61,8 @@ The following interfaces are available when their services are running:
 
 Run from `/workspace` inside the dev container. Every path, topic, and Kafka address is a command-line argument whose default comes from an environment variable set in `compose.yaml` (`KAFKA_BOOTSTRAP_SERVERS`, `MODEL_PATH`, `ENTITY_CHECKPOINT_PATH`, …), so no local paths are hardcoded. Pass the argument or set the variable to override; `--help` lists each script's arguments.
 
-- **Sample messages (until the producer exists):** `python scripts/publish_samples.py` publishes `data/examples/topic1.jsonl` to `topic1`.
+- **Producer (Part 1):** `python src/producer/main.py` checks Hacker News `maxitem` every `--poll-interval` seconds (default 30), fetches every new story and comment, strips comment HTML, publishes each to `topic1`, and appends it to `hackernews.jsonl` under `RAW_DATA_PATH`. It starts from the newest item at launch, so restarting never re-sends an ID. Hacker News produces roughly 8 items per minute, so 1,000 messages take about 2 hours.
+- **Sample messages (offline testing only):** `python scripts/publish_samples.py` publishes the 15 messages in `data/examples/topic1.jsonl`. Don't run it against the `topic1` you collect real data in; the samples would be counted with it.
 - **Streaming application (Part 1 + Part 2 real time):** `python src/entities/main.py` runs two queries on `topic1`: cumulative entity counts to `topic2`, and running counts per predicted category printed to the console. Pass `--skip-classification` to run only the entity query before the model in `MODEL_PATH` has been trained.
 
 ## Data Contracts

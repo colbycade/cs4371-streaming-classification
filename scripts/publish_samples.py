@@ -1,5 +1,4 @@
-# Used to publish sample data to Kafka for testing purposes
-# Replace once actual producer is implemented
+# Publishes the sample messages to Kafka for quick testing without the live producer
 import argparse
 import json
 import os
