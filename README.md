@@ -29,7 +29,7 @@ We need to build a system that collects text from the internet in real time, ide
 |---|---|---|---|
 | Data collection | `producer/` | Collect Hacker News stories/comments, publish text to Kafka `topic1`, and save collected messages locally | Julian |
 | Entity counting | `entities/` | Use Spark and spaCy to extract and count named entities, publish cumulative counts to topic2, and configure Logstash, Elasticsearch, and the Kibana dashboard | Colby Wright |
-| Model training | `training/` | Load AG News, fit the Spark MLlib classification pipeline, and save the trained model | |
+| Model training | `training/` | Load AG News, fit the Spark MLlib classification pipeline, and save the trained model | Connor Kepilino |
 | Classification | `classification/` | Classify collected messages in batch, report predictions and category counts, and evaluate 50 manually labeled messages (the real-time query lives in `entities/main.py`) | |
 
 - We'll work on separate Git branches and merge changes through pull requests. Each person should primarily work within their assigned directory.
@@ -37,6 +37,54 @@ We need to build a system that collects text from the internet in real time, ide
 - Each component has a main.py starter with command-line arguments and TODO comments. Teammates can change the internal structure as needed, but should preserve the agreed Kafka message formats and shared model interface.
 - We'll also need to write the report and record an 8 minute demo video
 - If you use AI, keep track of your chats and export transcripts as PDFs
+
+## Remaining Work
+
+Due **Sunday, Nov 15, 11:59 PM**. Check items off as they land on `main`.
+
+### Code
+- [x] Producer: `src/producer/main.py` (Julian, `producer` branch)
+- [x] Entity counting, Logstash pipeline, Kibana dashboard (Colby, `entities` branch)
+- [x] Real-time classification: second query in `src/entities/main.py` (`producer` branch); runs once a trained model exists
+- [ ] **Training** (`src/training/main.py`, Connor)
+  - Download the AG News training file ([`train-00000-of-00001.parquet`](https://huggingface.co/datasets/fancyzhx/ag_news/resolve/main/data/train-00000-of-00001.parquet), 18 MB) into `--train-data-path`
+  - Report how many articles each class has
+  - Fit `RegexTokenizer → StopWordsRemover → HashingTF → IDF → LogisticRegression`, with `RegexTokenizer(pattern="\\W+")` so punctuation is dropped (the default pattern splits on whitespace only)
+  - Save the `PipelineModel` to `--model-path`, keeping the [model interface](#classification-model-interface) below
+- [ ] **Batch classification** (`src/classification/main.py`, unassigned)
+  - Read every `topic1` message with a batch Kafka read from `earliest`, or read `data/raw/hackernews.jsonl`; keep only the text
+  - Drop empty and duplicate messages and report how many remain (must be ≥ 1,000)
+  - Predict every message; report the count per category and 5 examples per category with their probability
+  - Write `results/predictions.csv`: text, predicted category, probability for every message
+- [ ] **Hand check** (same script)
+  - Sample 50 messages at random with a fixed seed and write them to a CSV for labeling
+  - Label each as World, Sports, Business, Sci/Tech, or None of these
+  - Report accuracy on the messages that fit one of the four classes and how many fit none
+  - Write `results/manual_labels.csv`: hand label next to the model's prediction
+- [ ] Add training and classification run instructions to [Running the Components](#running-the-components)
+- [ ] Merge pull requests: `entities` → `main`, then `producer` → `main`, then training and classification
+
+### Data collection run (one machine, about 2 hours)
+Kafka data lives in that machine's Docker volume and `data/raw/` is gitignored. The same person should run the batch classification, or send `data/raw/hackernews.jsonl` to whoever does.
+- [ ] Start `src/producer/main.py` and `src/entities/main.py` at the same time (add `--skip-classification` until the model exists), and keep the machine awake (`caffeinate -i` on macOS)
+- [ ] Screenshot the Kibana Top 10 chart 15, 30, 45, and 60 minutes after starting
+- [ ] Keep the producer running until `data/raw/hackernews.jsonl` has at least 1,000 lines (`wc -l`)
+- [ ] Once the model is trained, restart `src/entities/main.py` without `--skip-classification` and capture the per-category console counts
+
+### Report (PDF)
+- [ ] First page: Team 32, every member's name and NetID, contribution table, video link
+- [ ] Part 1: how the Hacker News data is collected, the four Kibana screenshots, a paragraph on what the top entities show
+- [ ] Part 2: AG News articles per class, messages left after removing empty and duplicate ones, count per predicted category with 5 examples each, hand-check accuracy and the None of these count
+- [ ] Part 2 summary: whether the categories make sense for Hacker News, which messages the model handles well or badly and why, a few misclassified examples
+- [ ] Appendix: each AI tool used, who used it, and what for
+
+### Video (8 minutes max)
+- [ ] Narrated screen recording of both parts running, with every member explaining the part they built
+- [ ] Set sharing so anyone with the link can view it, and put the link on the report's first page
+
+### Submission
+- [ ] Every member exports their AI chat transcripts as PDFs into `ai_transcripts/`
+- [ ] One member submits `32-GP1.zip` with the code, this README, the Kibana screenshots, `results/predictions.csv`, `results/manual_labels.csv`, the report PDF, and `ai_transcripts/`. `results/` is gitignored, so copy the CSVs from the machine that produced them.
 
 ## Quick Start
 
@@ -59,11 +107,23 @@ The following interfaces are available when their services are running:
 
 ## Running the Components
 
-Run from `/workspace` inside the dev container. Every path, topic, and Kafka address is a command-line argument whose default comes from an environment variable set in `compose.yaml` (`KAFKA_BOOTSTRAP_SERVERS`, `MODEL_PATH`, `ENTITY_CHECKPOINT_PATH`, …), so no local paths are hardcoded. Pass the argument or set the variable to override; `--help` lists each script's arguments.
+Run from `/workspace` inside the dev container. Every path, topic, and Kafka address is a command-line argument whose default comes from an environment variable. `compose.yaml` sets the Kafka address and every data, model, checkpoint, and results path (`KAFKA_BOOTSTRAP_SERVERS`, `RAW_DATA_PATH`, `TRAIN_DATA_PATH`, `MODEL_PATH`, `ENTITY_CHECKPOINT_PATH`, `CLASSIFICATION_CHECKPOINT_PATH`, `RESULTS_PATH`), so no local paths are hardcoded; topics default to `topic1` and `topic2`. Pass the argument or set the variable to override; `--help` lists each script's arguments.
 
 - **Producer (Part 1):** `python src/producer/main.py` checks Hacker News `maxitem` every `--poll-interval` seconds (default 30), fetches every new story and comment, strips comment HTML, publishes each to `topic1`, and appends it to `hackernews.jsonl` under `RAW_DATA_PATH`. It starts from the newest item at launch, so restarting never re-sends an ID. Hacker News produces roughly 8 items per minute, so 1,000 messages take about 2 hours.
 - **Sample messages (offline testing only):** `python scripts/publish_samples.py` publishes the 15 messages in `data/examples/topic1.jsonl`. Don't run it against the `topic1` you collect real data in; the samples would be counted with it.
 - **Streaming application (Part 1 + Part 2 real time):** `python src/entities/main.py` runs two queries on `topic1`: cumulative entity counts to `topic2`, and running counts per predicted category printed to the console. Pass `--skip-classification` to run only the entity query before the model in `MODEL_PATH` has been trained.
+
+### Starting a clean run
+
+Reset before the real collection run, or whenever test messages got into `topic1`. Run from the repo root on the host:
+
+```bash
+docker compose down -v   # deletes Kafka topics, Elasticsearch data, and the Spark connector cache
+rm -rf data/checkpoints/entities data/checkpoints/classification data/raw/hackernews.jsonl
+docker compose up -d
+```
+
+Reset all of these together. Spark checkpoints store `topic1` offsets, so after a Kafka reset old checkpoints point past the end of the new topic and the streaming queries fail. An Elasticsearch volume kept from an earlier run keeps that run's entity counts in the Kibana chart. Kibana's saved objects live in Elasticsearch, so [import the dashboard](#kibana-dashboard) again afterwards.
 
 ## Data Contracts
 
@@ -78,6 +138,7 @@ Entity counts in `topic2` are running totals, not changes since the previous bat
 
 We need to agree on consistent file paths so teammates can run each other's components and reproduce the required outputs locally:
 - `data/raw/hackernews.jsonl` — Collected Hacker News messages, one JSON object per line, matching `topic1.schema.json`
+- `data/raw/ag_news/` — AG News training Parquet file, downloaded by the training component
 - `data/models/ag_news/` — Saved Spark MLlib PipelineModel
 - `results/predictions.csv` — Batch classification predictions and probabilities
 - `results/manual_labels.csv` — 50 manually labeled messages and model predictions

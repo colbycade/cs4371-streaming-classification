@@ -16,11 +16,13 @@ services:
       PYSPARK_PYTHON: python
       PYSPARK_DRIVER_PYTHON: python
       PYSPARK_SUBMIT_ARGS: "--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.8 pyspark-shell"
-      # Default paths for data and models
+      # Default paths for data, models, checkpoints, and results
       MODEL_PATH: /workspace/data/models/ag_news
       ENTITY_CHECKPOINT_PATH: /workspace/data/checkpoints/entities
       CLASSIFICATION_CHECKPOINT_PATH: /workspace/data/checkpoints/classification
       RAW_DATA_PATH: /workspace/data/raw
+      TRAIN_DATA_PATH: /workspace/data/raw/ag_news
+      RESULTS_PATH: /workspace/results
     ports:
       - "127.0.0.1:4040:4040"
     depends_on:

@@ -50,6 +50,9 @@ def main():
     spark = (
         SparkSession.builder
         .appName("EntityCounter")
+        # The default of 200 shuffle partitions means 200 tasks and 200 state files per query per trigger.
+        # A checkpoint keeps the value it was created with, so changing this requires a fresh checkpoint.
+        .config("spark.sql.shuffle.partitions", "4")
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("ERROR")

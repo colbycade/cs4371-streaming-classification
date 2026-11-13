@@ -4,7 +4,7 @@ import os
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression
-from pyspark.ml.feature import HashingTF, IDF, StopWordsRemover, Tokenizer
+from pyspark.ml.feature import HashingTF, IDF, RegexTokenizer, StopWordsRemover
 
 
 def main():
@@ -17,6 +17,7 @@ def main():
     # TODO: Download/load the AG News training dataset
     # TODO: Build MLlib pipeline:
     # RegexTokenizer -> StopWordsRemover -> HashingTF -> IDF -> LogisticRegression
+    # Use RegexTokenizer(pattern="\\W+"): its default pattern "\\s+" splits on whitespace only and keeps punctuation
     # TODO: Fit pipeline on training data
     # TODO: Save trained PipelineModel to model path
 

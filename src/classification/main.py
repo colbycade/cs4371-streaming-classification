@@ -10,14 +10,15 @@ def main():
     parser.add_argument("--bootstrap-servers", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"))
     parser.add_argument("--input-topic", default=os.getenv("INPUT_TOPIC", "topic1"))
     parser.add_argument("--model-path", default=os.getenv("MODEL_PATH", "/workspace/data/models/ag_news"))
+    parser.add_argument("--results-path", default=os.getenv("RESULTS_PATH", "/workspace/results"), help="directory for predictions.csv and manual_labels.csv")
     args = parser.parse_args()
 
     # TODO: Create SparkSession
     # TODO: Load saved PipelineModel
     # TODO: Read collected messages as batch
-    # TODO: Predict classes and probabilities
+    # TODO: Predict classes and probabilities; write predictions.csv to --results-path
     # TODO: Report counts and examples for each class
-    # TODO: Support manual evaluation of 50 messages
+    # TODO: Support manual evaluation of 50 messages; write manual_labels.csv to --results-path
 
 
 if __name__ == "__main__":
