@@ -19,7 +19,7 @@ We need to build a system that collects text from the internet in real time, ide
   3. **Save model:** Save the trained PipelineModel for reuse
   4. **Batch classification:** Read messages from Kafka topic1, predict a category for each, count messages per category, and show five examples per category with probabilities
   5. **Check by hand:** Manually label 50 random messages (including "None of these" when applicable), compare against predictions, and report accuracy and examples of misclassifications
-  6. **Real time classification:** Run second streaming query on topic1 to continuously classify incoming messages and maintain running counts per category
+  6. **Real time classification:** Second streaming query in the Part 1 application (`src/entities/main.py`) classifies each topic1 message and prints running counts per category to the console
 
 ## Team Responsibilities
 
@@ -27,10 +27,10 @@ We need to build a system that collects text from the internet in real time, ide
 
 | Component | Directory | Responsibility | Assigned To |
 |---|---|---|---|
-| Data collection | `producer/` | Collect Hacker News stories/comments, publish text to Kafka `topic1`, and save collected messages locally | |
+| Data collection | `producer/` | Collect Hacker News stories/comments, publish text to Kafka `topic1`, and save collected messages locally | Julian |
 | Entity counting | `entities/` | Use Spark and spaCy to extract and count named entities, publish cumulative counts to topic2, and configure Logstash, Elasticsearch, and the Kibana dashboard | Colby Wright |
 | Model training | `training/` | Load AG News, fit the Spark MLlib classification pipeline, and save the trained model | |
-| Classification | `classification/` | Classify collected messages in batch and real time, report predictions and category counts, and evaluate 50 manually labeled messages | |
+| Classification | `classification/` | Classify collected messages in batch, report predictions and category counts, and evaluate 50 manually labeled messages (the real-time query lives in `entities/main.py`) | |
 
 - We'll work on separate Git branches and merge changes through pull requests. Each person should primarily work within their assigned directory.
 - The `producer/` output is shared by both parts of the project, and the classification code depends on the saved model from `training/`.
@@ -56,6 +56,13 @@ The following interfaces are available when their services are running:
 - **Kibana:** http://localhost:5601
 - **Elasticsearch:** http://localhost:9200
 - **Spark UI:** http://localhost:4040 (while a Spark application is running)
+
+## Running the Components
+
+Run from `/workspace` inside the dev container. Every path, topic, and Kafka address is a command-line argument whose default comes from an environment variable set in `compose.yaml` (`KAFKA_BOOTSTRAP_SERVERS`, `MODEL_PATH`, `ENTITY_CHECKPOINT_PATH`, …), so no local paths are hardcoded. Pass the argument or set the variable to override; `--help` lists each script's arguments.
+
+- **Sample messages (until the producer exists):** `python scripts/publish_samples.py` publishes `data/examples/topic1.jsonl` to `topic1`.
+- **Streaming application (Part 1 + Part 2 real time):** `python src/entities/main.py` runs two queries on `topic1`: cumulative entity counts to `topic2`, and running counts per predicted category printed to the console. Pass `--skip-classification` to run only the entity query before the model in `MODEL_PATH` has been trained.
 
 ## Data Contracts
 
@@ -90,7 +97,7 @@ The dashboard configuration is included in `kibana/kibana-dashboard.ndjson`. It 
 
 1. Start the Docker Compose services and open http://localhost:5601.
 2. Navigate to **Management → Stack Management → Saved Objects**.
-3. Click **Import** and select `results/kibana-dashboard.ndjson`.
+3. Click **Import** and select `kibana/kibana-dashboard.ndjson`.
 4. Click **Import**, then navigate to **Analytics → Dashboards**.
 5. Open **Top 10 Named Entities**.
 

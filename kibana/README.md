@@ -33,4 +33,4 @@ Just in case we ever need to do this again.
     1. Navigate to **Management → Stack Management → Kibana → Saved Objects**.
     2. Select **Top 10 Named Entities** and click **Export**.
     3. Enable **Include related objects**.
-    4. Click **Export** and save the downloaded file as `results/kibana-dashboard.ndjson`.
+    4. Click **Export** and save the downloaded file as `kibana/kibana-dashboard.ndjson`.

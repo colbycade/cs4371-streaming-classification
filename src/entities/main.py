@@ -2,11 +2,13 @@
 import argparse
 import os
 import spacy
+from pyspark.ml import PipelineModel
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf, explode, from_json, to_json, struct
+from pyspark.sql.functions import array, col, element_at, explode, from_json, lit, struct, to_json, udf
 from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
 KEEP = {"PERSON", "ORG", "GPE", "NORP", "EVENT", "PRODUCT"}
+CATEGORIES = ["World", "Sports", "Business", "Sci/Tech"]  # AG News label order (prediction 0-3)
 
 _nlp = None # Global spaCy model instance to avoid reloading for each UDF call
 
@@ -35,11 +37,14 @@ def entities(text):
 ner = udf(entities, ArrayType(StringType()))
 
 def main():
-    parser = argparse.ArgumentParser(description="Streaming entity counts")
+    parser = argparse.ArgumentParser(description="Streaming entity counts and topic classification")
     parser.add_argument("--bootstrap-servers", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"))
     parser.add_argument("--input-topic", default=os.getenv("INPUT_TOPIC", "topic1"))
     parser.add_argument("--output-topic", default=os.getenv("OUTPUT_TOPIC", "topic2"))
-    parser.add_argument("--checkpoint-path", default=os.getenv("ENTITY_CHECKPOINT_PATH", "/workspace/data/checkpoints/entities"))
+    parser.add_argument("--entity-checkpoint-path", default=os.getenv("ENTITY_CHECKPOINT_PATH", "/workspace/data/checkpoints/entities"))
+    parser.add_argument("--model-path", default=os.getenv("MODEL_PATH", "/workspace/data/models/ag_news"))
+    parser.add_argument("--classification-checkpoint-path", default=os.getenv("CLASSIFICATION_CHECKPOINT_PATH", "/workspace/data/checkpoints/classification"))
+    parser.add_argument("--skip-classification", action="store_true", help="run only the entity count query, e.g. before the model is trained")
     args = parser.parse_args()
 
     spark = (
@@ -84,18 +89,39 @@ def main():
         to_json(struct("entity", "count")).alias("value")
     )
 
-    # Publish updated cumulative entity counts to topic2
-    query = (
+    # Query 1: publish updated cumulative entity counts to topic2
+    (
         output.writeStream
         .format("kafka")
         .outputMode("update")
         .option("kafka.bootstrap.servers", args.bootstrap_servers)
         .option("topic", args.output_topic)
-        .option("checkpointLocation", args.checkpoint_path)
+        .option("checkpointLocation", args.entity_checkpoint_path)
         .trigger(processingTime="10 seconds")
         .start()
     )
-    query.awaitTermination() # wait until stream is stopped (Ctrl+C)
+
+    # Query 2: classify each message with the saved AG News model and print running counts per category
+    if not args.skip_classification:
+        model = PipelineModel.load(args.model_path)
+        category = element_at(array(*[lit(name) for name in CATEGORIES]), col("prediction").cast("int") + 1)
+        category_counts = (
+            model.transform(msgs)
+            .select(category.alias("category"))
+            .groupBy("category")
+            .count()
+        )
+        (
+            category_counts.writeStream
+            .format("console")
+            .outputMode("complete")
+            .option("truncate", "false")
+            .option("checkpointLocation", args.classification_checkpoint_path)
+            .trigger(processingTime="10 seconds")
+            .start()
+        )
+
+    spark.streams.awaitAnyTermination() # wait until a query fails or the app is stopped (Ctrl+C)
 
 if __name__ == "__main__":
     main()
