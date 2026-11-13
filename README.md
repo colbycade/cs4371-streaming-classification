@@ -30,10 +30,10 @@ We need to build a system that collects text from the internet in real time, ide
 | Data collection | `producer/` | Collect Hacker News stories/comments, publish text to Kafka `topic1`, and save collected messages locally | Julian |
 | Entity counting | `entities/` | Use Spark and spaCy to extract and count named entities, publish cumulative counts to topic2, and configure Logstash, Elasticsearch, and the Kibana dashboard | Colby Wright |
 | Model training | `training/` | Load AG News, fit the Spark MLlib classification pipeline, and save the trained model | Connor Kepilino |
-| Classification | `classification/` | Classify collected messages in batch, report predictions and category counts, and evaluate 50 manually labeled messages (the real-time query lives in `entities/main.py`) | |
+| Classification | `classification/` | Run the training script locally to create the model, then classify collected messages in batch, report predictions and category counts, and evaluate 50 manually labeled messages (the real-time query lives in `entities/main.py`) | |
 
 - We'll work on separate Git branches and merge changes through pull requests. Each person should primarily work within their assigned directory.
-- The `producer/` output is shared by both parts of the project, and the classification code depends on the saved model from `training/`.
+- The `producer/` output is shared by both parts of the project. Trained models aren't committed (`data/models/` is gitignored), so whoever takes classification runs `src/training/main.py` on their own machine to create the model, then runs classification.
 - Each component has a main.py starter with command-line arguments and TODO comments. Teammates can change the internal structure as needed, but should preserve the agreed Kafka message formats and shared model interface.
 - We'll also need to write the report and record an 8 minute demo video
 - If you use AI, keep track of your chats and export transcripts as PDFs
@@ -52,6 +52,7 @@ Due **Sunday, Nov 15, 11:59 PM**. Check items off when they're done and pushed; 
   - Fit `RegexTokenizer → StopWordsRemover → HashingTF → IDF → LogisticRegression`, with `RegexTokenizer(pattern="\\W+")` so punctuation is dropped (the default pattern splits on whitespace only)
   - Save the `PipelineModel` to `--model-path`, keeping the [model interface](#classification-model-interface) below
 - [ ] **Batch classification** (`src/classification/main.py`, unassigned)
+  - First run `python src/training/main.py` to save the model to `MODEL_PATH` on your machine
   - Read every `topic1` message with a batch Kafka read from `earliest`, or read `data/raw/hackernews.jsonl`; keep only the text
   - Drop empty and duplicate messages and report how many remain (must be ≥ 1,000)
   - Predict every message; report the count per category and 5 examples per category with their probability
@@ -62,10 +63,10 @@ Due **Sunday, Nov 15, 11:59 PM**. Check items off when they're done and pushed; 
   - Report accuracy on the messages that fit one of the four classes and how many fit none
   - Write `manual_labels.csv` to `--results-path`: hand label next to the model's prediction
 - [ ] Add training and classification run instructions to [Running the Components](#running-the-components)
-- [ ] Merge `producer` → `main`. It already contains every `entities` commit; on the README team-table conflict, keep the `producer` side. Then branch training and classification off the updated `main`
+- [x] Merge `producer` → `main` (PR #1); branch training and classification off `main`
 
-### Data collection run (one machine, about 2 hours)
-Kafka data lives in that machine's Docker volume and `data/raw/` is gitignored. The same person should run the batch classification, or send `data/raw/hackernews.jsonl` to whoever does.
+### Data collection run (classification owner's machine, about 2 hours)
+Kafka data, `data/raw/`, and the trained model all stay on the machine that made them; none are committed. Whoever takes classification should do this run, so the batch classification, hand check, and real-time query have the messages and the model in one place.
 - [ ] Reset Kafka, Elasticsearch, and checkpoints first ([Starting a clean run](#starting-a-clean-run)), then re-import the Kibana dashboard
 - [ ] Start `src/producer/main.py` and `src/entities/main.py` at the same time (add `--skip-classification` until the model exists), and keep the machine awake (`caffeinate -i` on macOS)
 - [ ] Screenshot the Kibana Top 10 chart 15, 30, 45, and 60 minutes after starting
