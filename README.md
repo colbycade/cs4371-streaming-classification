@@ -40,12 +40,12 @@ We need to build a system that collects text from the internet in real time, ide
 
 ## Remaining Work
 
-Due **Sunday, Nov 15, 11:59 PM**. Check items off as they land on `main`.
+Due **Sunday, Nov 15, 11:59 PM**. Check items off when they're done and pushed; the last Code item tracks getting them onto `main`.
 
 ### Code
-- [x] Producer: `src/producer/main.py` (Julian, `producer` branch)
-- [x] Entity counting, Logstash pipeline, Kibana dashboard (Colby, `entities` branch)
-- [x] Real-time classification: second query in `src/entities/main.py` (`producer` branch); runs once a trained model exists
+- [x] Producer: `src/producer/main.py` (Julian)
+- [x] Entity counting, Logstash pipeline, Kibana dashboard (Colby)
+- [x] Real-time classification: second query in `src/entities/main.py`; runs once a trained model exists
 - [ ] **Training** (`src/training/main.py`, Connor)
   - Download the AG News training file ([`train-00000-of-00001.parquet`](https://huggingface.co/datasets/fancyzhx/ag_news/resolve/main/data/train-00000-of-00001.parquet), 18 MB) into `--train-data-path`
   - Report how many articles each class has
@@ -55,17 +55,18 @@ Due **Sunday, Nov 15, 11:59 PM**. Check items off as they land on `main`.
   - Read every `topic1` message with a batch Kafka read from `earliest`, or read `data/raw/hackernews.jsonl`; keep only the text
   - Drop empty and duplicate messages and report how many remain (must be ≥ 1,000)
   - Predict every message; report the count per category and 5 examples per category with their probability
-  - Write `results/predictions.csv`: text, predicted category, probability for every message
+  - Write `predictions.csv` to `--results-path` (`results/` by default): text, predicted category, probability for every message
 - [ ] **Hand check** (same script)
   - Sample 50 messages at random with a fixed seed and write them to a CSV for labeling
   - Label each as World, Sports, Business, Sci/Tech, or None of these
   - Report accuracy on the messages that fit one of the four classes and how many fit none
-  - Write `results/manual_labels.csv`: hand label next to the model's prediction
+  - Write `manual_labels.csv` to `--results-path`: hand label next to the model's prediction
 - [ ] Add training and classification run instructions to [Running the Components](#running-the-components)
-- [ ] Merge pull requests: `entities` → `main`, then `producer` → `main`, then training and classification
+- [ ] Merge `producer` → `main`. It already contains every `entities` commit; on the README team-table conflict, keep the `producer` side. Then branch training and classification off the updated `main`
 
 ### Data collection run (one machine, about 2 hours)
 Kafka data lives in that machine's Docker volume and `data/raw/` is gitignored. The same person should run the batch classification, or send `data/raw/hackernews.jsonl` to whoever does.
+- [ ] Reset Kafka, Elasticsearch, and checkpoints first ([Starting a clean run](#starting-a-clean-run)), then re-import the Kibana dashboard
 - [ ] Start `src/producer/main.py` and `src/entities/main.py` at the same time (add `--skip-classification` until the model exists), and keep the machine awake (`caffeinate -i` on macOS)
 - [ ] Screenshot the Kibana Top 10 chart 15, 30, 45, and 60 minutes after starting
 - [ ] Keep the producer running until `data/raw/hackernews.jsonl` has at least 1,000 lines (`wc -l`)
