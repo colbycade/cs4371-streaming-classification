@@ -23,3 +23,6 @@ results/*
 
 # OS-generated files
 .DS_Store
+
+# Generated knowledge graph
+graphify-out/
