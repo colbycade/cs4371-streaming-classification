@@ -15,8 +15,6 @@ data/models/*
 !data/models/.gitkeep
 data/checkpoints/*
 !data/checkpoints/.gitkeep
-results/*
-!results/.gitkeep
 
 # Logs
 *.log

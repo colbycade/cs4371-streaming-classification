@@ -1,0 +1,26 @@
+No parquet found in /workspace/data/raw/ag_news; downloading AG News train split from https://huggingface.co/datasets/fancyzhx/ag_news/resolve/main/data/train-00000-of-00001.parquet
+AG News training articles: 120000
+Articles per class:
++-----+--------+-----+
+|label|   class|count|
++-----+--------+-----+
+|  0.0|   World|30000|
+|  1.0|  Sports|30000|
+|  2.0|Business|30000|
+|  3.0|Sci/Tech|30000|
++-----+--------+-----+
+Fitting pipeline...
+Saved PipelineModel to /workspace/data/models/ag_news
+No parquet found in /workspace/data/raw/ag_news_test; downloading AG News test split from https://huggingface.co/datasets/fancyzhx/ag_news/resolve/main/data/test-00000-of-00001.parquet
+AG News test articles: 7600
+Test accuracy: 0.8978
+Test f1: 0.8977
+Confusion matrix (rows = true label, columns = predicted):
++-----+----+----+----+----+
+|label| 0.0| 1.0| 2.0| 3.0|
++-----+----+----+----+----+
+|  0.0|1689|  60|  90|  61|
+|  1.0|  39|1828|  16|  17|
+|  2.0|  75|  19|1629| 177|
+|  3.0|  54|  21| 148|1677|
++-----+----+----+----+----+

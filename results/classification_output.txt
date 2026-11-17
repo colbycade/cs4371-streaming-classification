@@ -1,0 +1,42 @@
+Messages read: 1091
+Non-empty, unique messages: 1089
+Predicted messages per category:
+  World: 70
+  Sports: 97
+  Business: 236
+  Sci/Tech: 686
+Five examples per category:
+
+World:
+  p=0.3471 | Whoa blast from the past. Lots of nostalgia rushing in of the early 2010's Melbourne startup scene. Great times.
+  p=0.4799 | Your perspective is entirely consistent with a consent/harm framework for sexual ethics. Do you also find these permissible? - Necrophilia - Bestiality - Adult incest
+  p=0.3409 | Some of it's real, the rest is a psy-op. It's not hard to figure out what the goal is.
+  p=0.5703 | Europe is already energy dependent on another continent.
+  p=0.8135 | Smuggling isn't spying. Chinese policy is a tually to ban import of nvidia hardware in order to build up their own capabilities, so a smuggler is breaking the law of both countries.
+
+Sports:
+  p=0.9765 | This project was about how citrus affected Sicily for a 1000 years. I have been pondering the possibility of continuing citrus travelogues elsewhere; there are so many fascinating stories: Algeria, Australia, Philippines, New Orleans, China, Japan, etc, etc. But your note makes me happy because once I finished this series, I started trying every ci
+  p=0.4464 | Not having the credentials make it into the chat transcript for one.
+  p=0.4457 | The latest RTLS flight was just over a month ago. Still, either they gave up, or 24h turnaround was all hype and never a real internal goal.
+  p=0.8758 | I just had to spend another 30 minutes removing "defender" because it was sucking up such resources and causing stuttering in various applications at random times. I did the exact same thing a few days ago going through group policies, registry settings, etc. Did it again today, still didn't work. Tried to do it through powershell which failed. Eve
+  p=0.6512 | >To be equally clear: I'm not sure if it does, either. You misunderstand me. It's perfectly clear to me that AI generated child porn is immoral and should be illegal. So there is no "either." That it's not clear -- whether AI generated child porn is immoral or not -- answers the question I posed to you by itself.
+
+Business:
+  p=0.9929 | I'm not super convinced that the commercial aerospace industry really needed NASA once super high value satellite services came about in the 90s. The ideal of a good government industry program, is to create a domestic industry, and A: maintain it at a minimum level for whatever goal is in focus (defence, technology familiarity, investment certaint
+  p=0.9596 | Taxpayers did not give a loan to SpaceX anymore than they gave one to any contractor they pay for a service. The government paid SpaceX for a service, which was delivered as promised. This happens hundreds of thousands of times a year with tons of companies being paid to do things for the government.
+  p=0.5151 | Director of Software Directing?
+  p=0.9190 | I think there's just a few retail investors who went all in on Nvidia stock and are panicking. One reason I think that is I see comments referring to lost retirement savings. But since a month ago, VTI is down 2% so the only way this makes sense is people gambling their IRAs on single company stock.
+  p=0.7288 | In the name of everything that's holy... CAN WE PLEASE STOP MESSING WITH THINGS THAT SHOULD BE RELIABLE? LEAVE THE FREAKING AIRPLANE THINGS ALONE PLEASE, who can be so stupid to decide bolting AI to that thing? you know that 4 letter POS that went to mess with firing a lot of people in the goverment airplanes and what's related to them? can we star
+
+Sci/Tech:
+  p=0.9956 | If this is about training, why does it have to be so geographically distributed? Why put data centers in cities? Why not just put the data centers near clean power sources? In fact, using AI requires also inference power that needs to be closer to the consumers.
+  p=0.9998 | The explanation could hold water, but that only demonstrates plausibility, not truth. Seems that a router that previously terminated copper interfaces was switched to terminate fiber. That alone doesn't really tell us much without knowing whether this is really all that happened or if it's shorthand for a bigger move at a higher level in the protoc
+  p=0.8808 | And I personally think that in some cases that would actually be a net positive for society. Like a kid disappears or a body is found murdered or a serious crime occurs. Being able to look at who was coming and going to solve serious crimes is probably a good thing. But for tracking petty crimes and with the abuse of the system with things like off
+  p=0.8084 | Starship is effectively another falling car that doesn't crash. It's taken 100 years for humans to build a rocket that lands itself. Gonna take even longer to establish a humans on Mars. There's no guarantee future generations can justify the effort, resource use. Yall gonna stay around 2-3 more generations to make sure they do?
+  p=0.9770 | Show HN: Gawain – Require type hints on all Python variables Yes, i really hate "dict[str, ANY]"
+
+Wrote predictions to /workspace/results/predictions.csv
+Wrote 50 hand-check rows to /workspace/results/manual_labels.csv
+Fill hand_label with World, Sports, Business, Sci/Tech, or None of these.
+Hand-check accuracy will appear after you add four-class labels and rerun.
+Hand-labeled as None of these: 0

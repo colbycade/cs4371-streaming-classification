@@ -86,7 +86,7 @@ Kafka data, `data/raw/`, and the trained model all stay on the machine that made
 
 ### Submission
 - [ ] Every member exports their AI chat transcripts as PDFs into `ai_transcripts/`
-- [ ] One member submits `32-GP1.zip` with the code, this README, the Kibana screenshots, `results/predictions.csv`, `results/manual_labels.csv`, the report PDF, and `ai_transcripts/`. `results/` is gitignored, so copy the CSVs from the machine that produced them.
+- [ ] One member submits `32-GP1.zip` with the code, this README, the Kibana screenshots, `results/predictions.csv`, `results/manual_labels.csv`, the report PDF, and `ai_transcripts/`. The `results/` CSVs and console output are committed to git.
 
 ## Quick Start
 
