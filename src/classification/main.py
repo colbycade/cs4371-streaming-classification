@@ -2,35 +2,37 @@ import argparse
 import csv
 import os
 import random
-from collections import Counter
 from pathlib import Path
 
 from pyspark.ml import PipelineModel
-from pyspark.ml.functions import vector_to_array
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import array, col, element_at, from_json, length, lit, trim
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.functions import array, col, element_at, from_json, length, lit, trim, udf
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
-CATEGORIES = {
-    0: "World",
-    1: "Sports",
-    2: "Business",
-    3: "Sci/Tech",
-}
-HAND_LABELS = set(CATEGORIES.values())
+CATEGORIES = ["World", "Sports", "Business", "Sci/Tech"]
 NONE_LABEL = "None of these"
+
+
+# Select the probability for the category predicted by the model.
+def predicted_probability(probabilities, label):
+    if probabilities is None or label is None:
+        return None
+    return float(probabilities[int(label)])
+
+
+probability_for_prediction = udf(predicted_probability, DoubleType())
 
 
 def read_messages(spark, source, input_path, bootstrap_servers, input_topic):
     schema = StructType([
-        StructField("id", StringType(), True),
-        StructField("text", StringType(), True),
+        StructField("id", StringType()),
+        StructField("text", StringType()),
     ])
 
     if source == "file":
-        return spark.read.schema(schema).json(str(input_path)).select("id", "text")
+        return spark.read.schema(schema).json(input_path).select("id", "text")
 
-    kafka_messages = (
+    messages = (
         spark.read.format("kafka")
         .option("kafka.bootstrap.servers", bootstrap_servers)
         .option("subscribe", input_topic)
@@ -39,19 +41,19 @@ def read_messages(spark, source, input_path, bootstrap_servers, input_topic):
         .load()
     )
     return (
-        kafka_messages
+        messages
         .select(from_json(col("value").cast("string"), schema).alias("message"))
         .select("message.id", "message.text")
     )
 
 
-def read_existing_labels(path):
+def read_hand_labels(path):
     if not path.exists():
         return {}
 
     labels = {}
-    with path.open("r", encoding="utf-8-sig", newline="") as input_file:
-        for row in csv.DictReader(input_file):
+    with path.open("r", encoding="utf-8-sig", newline="") as source:
+        for row in csv.DictReader(source):
             message_id = (row.get("id") or "").strip()
             hand_label = (row.get("hand_label") or "").strip()
             if message_id and hand_label:
@@ -61,8 +63,8 @@ def read_existing_labels(path):
 
 def write_csv(path, header, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as output_file:
-        writer = csv.writer(output_file)
+    with path.open("w", encoding="utf-8", newline="") as output:
+        writer = csv.writer(output)
         writer.writerow(header)
         writer.writerows(rows)
 
@@ -76,95 +78,65 @@ def main():
         default=os.path.join(raw_data_path, "hackernews.jsonl"),
         help="JSONL file created by the producer",
     )
-    parser.add_argument(
-        "--bootstrap-servers",
-        default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
-    )
+    parser.add_argument("--bootstrap-servers", default=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"))
     parser.add_argument("--input-topic", default=os.getenv("INPUT_TOPIC", "topic1"))
-    parser.add_argument(
-        "--model-path",
-        default=os.getenv("MODEL_PATH", "/workspace/data/models/ag_news"),
-    )
-    parser.add_argument(
-        "--results-path",
-        default=os.getenv("RESULTS_PATH", "/workspace/results"),
-        help="Directory for predictions.csv and manual_labels.csv",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=4371,
-        help="Fixed random seed for the 50-message hand-check sample",
-    )
+    parser.add_argument("--model-path", default=os.getenv("MODEL_PATH", "/workspace/data/models/ag_news"))
+    parser.add_argument("--results-path", default=os.getenv("RESULTS_PATH", "/workspace/results"))
+    parser.add_argument("--seed", type=int, default=4371, help="Fixed seed for the 50-message sample")
     args = parser.parse_args()
 
     results_path = Path(args.results_path)
     predictions_path = results_path / "predictions.csv"
     manual_labels_path = results_path / "manual_labels.csv"
-    existing_labels = read_existing_labels(manual_labels_path)
+    hand_labels = read_hand_labels(manual_labels_path)
 
-    spark = (
-        SparkSession.builder
-        .appName("HackerNewsBatchClassification")
-        .config("spark.sql.shuffle.partitions", "4")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("BatchClassification").getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
 
     try:
         messages = read_messages(
-            spark,
-            args.source,
-            args.input_path,
-            args.bootstrap_servers,
-            args.input_topic,
+            spark, args.source, args.input_path, args.bootstrap_servers, args.input_topic
         )
-        total_messages = messages.count()
-        clean_messages = (
+        total = messages.count()
+        messages = (
             messages
             .filter(col("text").isNotNull() & (length(trim(col("text"))) > 0))
             .dropDuplicates(["text"])
         )
-        clean_count = clean_messages.count()
-        print(f"Messages read: {total_messages}")
-        print(f"Non-empty, unique messages: {clean_count}")
-        if clean_count < 1000:
+        remaining = messages.count()
+        print(f"Messages read: {total}")
+        print(f"Non-empty, unique messages: {remaining}")
+        if remaining < 1000:
             print("WARNING: The assignment requires at least 1,000 usable messages.")
-        if clean_count == 0:
+        if remaining == 0:
             raise RuntimeError("No usable messages found. Check the input file or Kafka topic.")
 
         model = PipelineModel.load(args.model_path)
-        scored_messages = (
-            model.transform(clean_messages)
-            .withColumn("predicted_label", col("prediction").cast("int"))
-            .withColumn(
-                "predicted_class",
-                element_at(
-                    array(*[lit(CATEGORIES[index]) for index in range(4)]),
-                    col("predicted_label") + lit(1),
-                ),
-            )
-            .withColumn("probability_values", vector_to_array(col("probability")))
+        category = element_at(
+            array(*[lit(name) for name in CATEGORIES]),
+            col("prediction").cast("int") + lit(1),
+        )
+        scored = (
+            model.transform(messages)
+            .withColumn("predicted_class", category)
             .withColumn(
                 "predicted_probability",
-                element_at(col("probability_values"), col("predicted_label") + lit(1)),
+                probability_for_prediction(col("probability"), col("prediction")),
             )
         )
-        rows = scored_messages.select(
-            "id", "text", "predicted_label", "predicted_class", "predicted_probability"
+        rows = scored.select(
+            "id", "text", "predicted_class", "predicted_probability"
         ).orderBy(col("id").asc_nulls_last(), col("text")).collect()
 
+        counts = {name: 0 for name in CATEGORIES}
         predictions = []
-        category_counts = Counter()
         for row in rows:
-            predicted_class = row["predicted_class"]
-            probability = float(row["predicted_probability"])
-            category_counts[predicted_class] += 1
+            counts[row["predicted_class"]] += 1
             predictions.append([
                 row["id"] or "",
                 row["text"],
-                predicted_class,
-                f"{probability:.8f}",
+                row["predicted_class"],
+                f"{float(row['predicted_probability']):.8f}",
             ])
         write_csv(
             predictions_path,
@@ -173,47 +145,35 @@ def main():
         )
 
         print("Predicted messages per category:")
-        for category in CATEGORIES.values():
-            print(f"  {category}: {category_counts[category]}")
+        for name in CATEGORIES:
+            print(f"  {name}: {counts[name]}")
 
-        print("Five examples per category (with predicted-class probability):")
-        for category in CATEGORIES.values():
-            print(f"\n{category}:")
-            examples = [row for row in rows if row["predicted_class"] == category][:5]
+        print("Five examples per category:")
+        for name in CATEGORIES:
+            print(f"\n{name}:")
+            examples = [row for row in rows if row["predicted_class"] == name][:5]
+            for row in examples:
+                text = " ".join(row["text"].split())
+                print(f"  p={float(row['predicted_probability']):.4f} | {text[:350]}")
             if not examples:
                 print("  No messages predicted in this category.")
-            for row in examples:
-                text = " ".join((row["text"] or "").split())
-                print(f"  p={float(row['predicted_probability']):.4f} | {text[:350]}")
 
-        sample_size = min(50, len(rows))
-        sample = random.Random(args.seed).sample(rows, sample_size)
+        sample = random.Random(args.seed).sample(rows, min(50, len(rows)))
         manual_rows = []
-        valid_hand_labels = []
-        mistakes = []
+        checked = []
         none_count = 0
-        invalid_labels = []
-
         for row in sample:
             message_id = row["id"] or ""
-            hand_label = existing_labels.get(message_id, "")
-            predicted_class = row["predicted_class"]
+            hand_label = hand_labels.get(message_id, "")
+            prediction = row["predicted_class"]
             probability = f"{float(row['predicted_probability']):.8f}"
             manual_rows.append([
-                message_id,
-                row["text"],
-                predicted_class,
-                probability,
-                hand_label,
+                message_id, row["text"], prediction, probability, hand_label
             ])
-            if hand_label in HAND_LABELS:
-                valid_hand_labels.append((hand_label, predicted_class))
-                if hand_label != predicted_class:
-                    mistakes.append((hand_label, predicted_class, row["text"]))
+            if hand_label in CATEGORIES:
+                checked.append((hand_label, prediction, row["text"]))
             elif hand_label == NONE_LABEL:
                 none_count += 1
-            elif hand_label:
-                invalid_labels.append(hand_label)
 
         write_csv(
             manual_labels_path,
@@ -221,31 +181,21 @@ def main():
             manual_rows,
         )
         print(f"\nWrote predictions to {predictions_path}")
-        print(f"Wrote {sample_size} hand-check messages to {manual_labels_path}")
+        print(f"Wrote {len(sample)} hand-check rows to {manual_labels_path}")
         print("Fill hand_label with World, Sports, Business, Sci/Tech, or None of these.")
 
-        if valid_hand_labels or none_count:
-            correct = sum(
-                hand_label == predicted_class
-                for hand_label, predicted_class in valid_hand_labels
-            )
-            if valid_hand_labels:
-                accuracy = correct / len(valid_hand_labels)
-                print(
-                    "Hand-check accuracy (four AG News categories): "
-                    f"{accuracy:.4f} ({correct}/{len(valid_hand_labels)})"
-                )
-            else:
-                print("Hand-check accuracy: not available (no four-class labels yet).")
-            print(f"Hand-labeled as None of these: {none_count}")
-            if mistakes:
-                print("Hand-check examples where the prediction differs:")
-                for hand_label, predicted_class, text in mistakes[:5]:
-                    print(f"  Hand label: {hand_label} | Prediction: {predicted_class} | {text[:300]}")
+        if checked:
+            correct = sum(hand_label == prediction for hand_label, prediction, _ in checked)
+            accuracy = correct / len(checked)
+            print(f"Hand-check accuracy: {accuracy:.4f} ({correct}/{len(checked)})")
         else:
-            print("Hand-check results will appear after you fill in hand_label and rerun this script.")
-        if invalid_labels:
-            print("Some hand_label values were not recognized; check the allowed label names.")
+            print("Hand-check accuracy will appear after you add four-class labels and rerun.")
+        print(f"Hand-labeled as None of these: {none_count}")
+        mistakes = [row for row in checked if row[0] != row[1]]
+        if mistakes:
+            print("Examples where the hand label and prediction differ:")
+            for hand_label, prediction, text in mistakes[:5]:
+                print(f"  Hand label: {hand_label} | Prediction: {prediction} | {text[:300]}")
     finally:
         spark.stop()
 
