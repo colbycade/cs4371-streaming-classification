@@ -1,3 +1,5 @@
+__test__/
+
 # Environment variables and secrets
 .env
 .env.*
